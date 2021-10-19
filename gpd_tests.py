@@ -20,6 +20,7 @@ def generate_data(shape_bounds, scale_bounds, sample_size, experiment):
     pickle.dump(to_dump, experiment_file)
     experiment_file.close()
     print("scipy fit: ", genpareto.fit(r, floc=min(r)))
+    print("true data min: ", min(r))
 
 
 # fig, ax = plt.subplots(1, 1)
