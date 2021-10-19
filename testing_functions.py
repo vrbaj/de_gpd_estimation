@@ -166,19 +166,22 @@ def schaffer_n2_function(x):
     return 0.5 + (np.sin(x[0] ** 2 + x[1] ** 2) ** 2 - 0.5) / (1 + 0.001 * (x[0] ** 2 + x[1] ** 2)) ** 2
 
 
-def gpd_ll_function(x):
+def gpd_ll_function(x, data=[], thread_number=-1):
     """
     Log-likelihood function of Generalized Pareto distribution.
     :param x: input list [scale, shape, location]
     :return: value of log-likelihood function
     """
+    print("thread: ", thread_number, "x: ", x)
     shape = x[0]
     scale = x[1]
+    thread_number = thread_number
+    data = data
     theta = shape / scale
     # location = x[2]
-    dbfile = open('gpd_sample', 'rb')
-    data = pickle.load(dbfile)
-    dbfile.close()
+    # dbfile = open('gpd_sample', 'rb')
+    # data = pickle.load(dbfile)
+    # dbfile.close()
     log_sum = 0
     for item in data:
         log_sum = log_sum + np.log(theta / shape) - (1 + 1/shape)*np.log(1 + theta * item)

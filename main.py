@@ -1,14 +1,18 @@
+import multiprocessing
 from random import sample
 from matplotlib import pyplot as plt
 import numpy as np
 import population_initialization
 import os
 import pickle
+import gpd_tests
 
 
 class DifferentialEvolution:
     def __init__(self, cost_function, bounds, max_iterations,
-                 population_size, mutation, crossover, strategy, population_initialization_algorithm):
+                 population_size, mutation, crossover, strategy, population_initialization_algorithm, data=[], thread_number=1):
+        self.data = data
+        self.thread_number = thread_number
         self.cost_function = cost_function
         self.max_iterations = max_iterations
         self.population_size = population_size
@@ -50,7 +54,8 @@ class DifferentialEvolution:
                 crossover_candidates = self.generate_crossover_candidates(idx)
                 new_individual = []
                 random_dimension = np.random.randint(0, len(individual))
-                for dimension in range(len(individual)):
+                print(len(individual),  "ind len")
+                for dimension in range(len(individual[0:2])):
                     cr = np.random.uniform(0, 1)
                     if cr > self.crossover or random_dimension != dimension:
                         new_individual.append(individual[dimension])
@@ -58,9 +63,9 @@ class DifferentialEvolution:
                         # check boundaries, if violation, random generate new one
                         new_individual.append(self.mutate(crossover_candidates, dimension))
 
-                if self.cost_function(new_individual) < self.cost_function(individual):
+                if self.cost_function(new_individual, data=self.data, thread_number=self.thread_number) < self.cost_function(individual, data=self.data, thread_number=self.thread_number):
                     self.population[idx] = new_individual
-                self.generation_fitness.append(self.cost_function(self.population[idx]))
+                self.generation_fitness.append(self.cost_function(self.population[idx], data=self.data, thread_number=self.thread_number))
             if self.generation % 1000 == 0:
                 print("generation: ", self.generation, ", best solution:", self.get_best())
             # measure diversity here?
@@ -139,7 +144,7 @@ class DifferentialEvolution:
         best = np.inf
         best_idx = np.inf
         for idx, individual in enumerate(self.population):
-            cost = self.cost_function(individual)
+            cost = self.cost_function(individual, data=self.data, thread_number=self.thread_number)
             if cost < best_cost:
                 best = individual
                 best_cost = cost
@@ -161,9 +166,41 @@ def function_to_minimize(x):
     return x[0] ** 2 + x[1] ** 2
 
 
+def evolution_wrapper(sphere_function, bounds=[[-2, 2], [0, 2]], max_iterations=100,
+                                               population_size=100,  mutation=0.7, crossover=0.8,
+                                               strategy="DE/current-to-best/1",
+                      population_initialization_algorithm="random", thread_number=0, experiments=1000, total_runs=100, sample_size=100):
+    shape_bounds = bounds[0]
+    scale_bounds = bounds[1]
+    for experiment in range(experiments):
+        data = gpd_tests.generate_data(shape_bounds, scale_bounds, sample_size, experiment, thread_number)
+        for single_run in range(total_runs):
+
+            diff_evolution = DifferentialEvolution(sphere_function, bounds=[shape_bounds, scale_bounds], max_iterations=max_iterations,
+                                               population_size=population_size,  mutation=mutation, crossover=crossover,
+                                               strategy=strategy, population_initialization_algorithm="random", data=data, thread_number=thread_number)
+            diff_evolution.initialize()
+            diff_evolution.evolve()
+            de_results = open(os.path.join("de_results", str(sample_size), "gpd_experiment{:0>4d}_thread{}".format(experiment, thread_number)), "ab")
+            to_dump = {"experiment": experiment,
+                       "run": single_run,
+                       "sample_size": sample_size,
+                       "result": diff_evolution.get_best(),
+                       "max_iterations": max_iterations,
+                       "population_size": population_size,
+                       "mutation": mutation,
+                       "crossover": crossover,
+                       "strategy": strat}
+            pickle.dump(to_dump, de_results)
+            de_results.close()
+            print("thread:", thread_number, "experiment: ", experiment, "run: ", single_run, "the best solution: ", diff_evolution.get_best())
+
+
 if __name__ == '__main__':
     from testing_functions import gpd_ll_function as sphere_function
     from gpd_tests import generate_data
+
+
     experiments = 1000
     total_runs = 100
     shape_bounds = [-2, 2]
@@ -176,26 +213,35 @@ if __name__ == '__main__':
     sample_size = 100
     if not os.path.exists(os.path.join("de_results", str(sample_size))):
         os.makedirs(os.path.join("de_results", str(sample_size)))
-    for experiment in range(experiments):
-        generate_data(shape_bounds, scale_bounds, sample_size, experiment)
+    for i in range(multiprocessing.cpu_count() - 1):
+        process = multiprocessing.Process(target=evolution_wrapper, args=[sphere_function], kwargs={"thread_number": i})
+        process.start()
+        print("process ", i, " started")
+        process.join()
+        print("process ", i, " joined")
 
-        for single_run in range(total_runs):
 
-            diff_evolution = DifferentialEvolution(sphere_function, bounds=[shape_bounds, scale_bounds], max_iterations=max_iterations,
-                                               population_size=population_size,  mutation=mutation, crossover=crossover,
-                                               strategy=strat, population_initialization_algorithm="random")
-            diff_evolution.initialize()
-            diff_evolution.evolve()
-            de_results = open(os.path.join("de_results", str(sample_size), "gpd_experiment{:0>4d}".format(experiment)), "ab")
-            to_dump = {"experiment": experiment,
-                       "run": single_run,
-                       "sample_size": sample_size,
-                       "result": diff_evolution.get_best(),
-                       "max_iterations": max_iterations,
-                       "population_size": population_size,
-                       "mutation": mutation,
-                       "crossover": crossover,
-                       "strategy": strat}
-            pickle.dump(to_dump, de_results)
-            de_results.close()
-            print("experiment: ", experiment, "run: ", single_run, "the best solution: ", diff_evolution.get_best())
+
+    # for experiment in range(experiments):
+    #     data = generate_data(shape_bounds, scale_bounds, sample_size, experiment)
+    #
+    #     for single_run in range(total_runs):
+    #
+    #         diff_evolution = DifferentialEvolution(sphere_function, bounds=[shape_bounds, scale_bounds], max_iterations=max_iterations,
+    #                                            population_size=population_size,  mutation=mutation, crossover=crossover,
+    #                                            strategy=strat, population_initialization_algorithm="random", data=data, thread_number=x)
+    #         diff_evolution.initialize()
+    #         diff_evolution.evolve()
+    #         de_results = open(os.path.join("de_results", str(sample_size), "gpd_experiment{:0>4d}".format(experiment)), "ab")
+    #         to_dump = {"experiment": experiment,
+    #                    "run": single_run,
+    #                    "sample_size": sample_size,
+    #                    "result": diff_evolution.get_best(),
+    #                    "max_iterations": max_iterations,
+    #                    "population_size": population_size,
+    #                    "mutation": mutation,
+    #                    "crossover": crossover,
+    #                    "strategy": strat}
+    #         pickle.dump(to_dump, de_results)
+    #         de_results.close()
+    #         print("experiment: ", experiment, "run: ", single_run, "the best solution: ", diff_evolution.get_best())
