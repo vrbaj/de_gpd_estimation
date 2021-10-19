@@ -16,10 +16,10 @@ def generate_data(shape_bounds, scale_bounds, sample_size, experiment):
     if not os.path.exists(os.path.join("gpd_datasets", str(sample_size))):
         os.makedirs(os.path.join("gpd_datasets", str(sample_size)))
     experiment_file = open(os.path.join("gpd_datasets", str(sample_size), "gpd_experiment{:0>4d}".format(experiment)), "ab")
-    to_dump = {"gpd_data": r, "gpd_fit": genpareto.fit(r), "gpd_shape": shape_param, "gpd_scale": scale_param}
+    to_dump = {"gpd_data": r, "gpd_fit": genpareto.fit(r, floc=min(r)), "gpd_shape": shape_param, "gpd_scale": scale_param}
     pickle.dump(to_dump, experiment_file)
     experiment_file.close()
-    print("scipy fit: ", genpareto.fit(r))
+    print("scipy fit: ", genpareto.fit(r, floc=min(r)))
 
 
 # fig, ax = plt.subplots(1, 1)
