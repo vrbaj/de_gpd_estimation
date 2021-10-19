@@ -166,6 +166,7 @@ def function_to_minimize(x):
     return x[0] ** 2 + x[1] ** 2
 
 
+
 def evolution_wrapper(sphere_function, bounds=[[-2, 2], [0, 2]], max_iterations=100,
                                                population_size=100,  mutation=0.7, crossover=0.8,
                                                strategy="DE/current-to-best/1",
