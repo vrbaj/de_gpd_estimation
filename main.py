@@ -1,4 +1,6 @@
 import multiprocessing
+from multiprocessing import Manager, Process, Pool
+
 from random import sample
 from matplotlib import pyplot as plt
 import numpy as np
@@ -53,8 +55,8 @@ class DifferentialEvolution:
             for idx, individual in enumerate(self.population):
                 crossover_candidates = self.generate_crossover_candidates(idx)
                 new_individual = []
-                random_dimension = np.random.randint(0, len(individual))
-                print(len(individual),  "ind len")
+                random_dimension = np.random.randint(0, len(individual[0:2]))
+
                 for dimension in range(len(individual[0:2])):
                     cr = np.random.uniform(0, 1)
                     if cr > self.crossover or random_dimension != dimension:
@@ -111,11 +113,21 @@ class DifferentialEvolution:
                    self.mutation[0] * (self.population[crossover_candidates[3]][dimension] -
                                        self.population[crossover_candidates[4]][dimension])
         elif self.strategy == "DE/current-to-best/1":
-            return self.population[crossover_candidates[1]][dimension] + \
-                   self.mutation[0] * (self.population[crossover_candidates[0]][dimension] -
-                                       self.population[crossover_candidates[1]][dimension]) +\
-                   self.mutation[1] * (self.population[crossover_candidates[2]][dimension] -
-                                       self.population[crossover_candidates[3]][dimension])
+            try:
+                pomoc = self.population[crossover_candidates[1]][dimension] + \
+                       self.mutation[0] * (self.population[crossover_candidates[0]][dimension] -
+                                           self.population[crossover_candidates[1]][dimension]) +\
+                       self.mutation[1] * (self.population[crossover_candidates[2]][dimension] -
+                                           self.population[crossover_candidates[3]][dimension])
+
+            except TypeError:
+                print(self.mutation)
+                print(self.population[crossover_candidates[0]])
+                print(self.population[crossover_candidates[1]])
+                print(self.population[crossover_candidates[2]])
+                print(self.population[crossover_candidates[3]])
+                raise
+            return pomoc
         elif self.strategy == "DE/current-to-best/2":
             return self.population[crossover_candidates[1]][dimension] + \
                    self.mutation[0] * (self.population[crossover_candidates[0]][dimension] -
@@ -168,7 +180,7 @@ def function_to_minimize(x):
 
 
 def evolution_wrapper(sphere_function, bounds=[[-2, 2], [0, 2]], max_iterations=100,
-                                               population_size=100,  mutation=0.7, crossover=0.8,
+                                               population_size=100,  mutation=[0.7, 0.7] , crossover=0.8,
                                                strategy="DE/current-to-best/1",
                       population_initialization_algorithm="random", thread_number=0, experiments=1000, total_runs=100, sample_size=100):
     shape_bounds = bounds[0]
@@ -191,7 +203,7 @@ def evolution_wrapper(sphere_function, bounds=[[-2, 2], [0, 2]], max_iterations=
                        "population_size": population_size,
                        "mutation": mutation,
                        "crossover": crossover,
-                       "strategy": strat}
+                       "strategy": strategy}
             pickle.dump(to_dump, de_results)
             de_results.close()
             print("thread:", thread_number, "experiment: ", experiment, "run: ", single_run, "the best solution: ", diff_evolution.get_best())
@@ -214,12 +226,13 @@ if __name__ == '__main__':
     sample_size = 100
     if not os.path.exists(os.path.join("de_results", str(sample_size))):
         os.makedirs(os.path.join("de_results", str(sample_size)))
-    for i in range(multiprocessing.cpu_count() - 1):
-        process = multiprocessing.Process(target=evolution_wrapper, args=[sphere_function], kwargs={"thread_number": i})
-        process.start()
-        print("process ", i, " started")
-        process.join()
-        print("process ", i, " joined")
+
+    P = Pool()
+    sol = [P.apply_async(evolution_wrapper, [sphere_function], {"thread_number": x}) for x in range(3)]
+    P.close()
+    P.join()
+
+    for s in sol: s.get()
 
 
 

@@ -172,7 +172,7 @@ def gpd_ll_function(x, data=[], thread_number=-1):
     :param x: input list [scale, shape, location]
     :return: value of log-likelihood function
     """
-    print("thread: ", thread_number, "x: ", x)
+
     shape = x[0]
     scale = x[1]
     thread_number = thread_number
